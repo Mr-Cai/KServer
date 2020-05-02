@@ -43,6 +43,7 @@ import io.ktor.response.respondText
 import io.ktor.routing.get
 import io.ktor.routing.routing
 import io.ktor.server.engine.ShutDownUrl
+import io.ktor.server.netty.EngineMain
 import io.ktor.sessions.*
 import io.ktor.thymeleaf.Thymeleaf
 import io.ktor.thymeleaf.ThymeleafContent
@@ -59,7 +60,7 @@ import java.time.Duration
 import java.time.ZoneId
 import kotlin.collections.set
 
-fun main(args: Array<String>): Unit = io.ktor.server.netty.EngineMain.main(args)
+fun main(args: Array<String>): Unit = EngineMain.main(args)
 
 @kotlin.jvm.JvmOverloads
 fun Application.module(testing: Boolean = false) {

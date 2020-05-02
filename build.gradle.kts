@@ -14,7 +14,7 @@ group = "ktor.funny"
 version = "0.0.1"
 
 application {
-    mainClassName = "ApplicationKt"
+    mainClassName = "ServerKt"
 }
 
 tasks.withType<Jar> {
