@@ -1,0 +1,12 @@
+{
+  "snippets": [
+    {
+      "user": "test",
+      "text": "hello"
+    },
+    {
+      "user": "test",
+      "text": "world"
+    }
+  ]
+}

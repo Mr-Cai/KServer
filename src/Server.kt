@@ -73,7 +73,7 @@ fun Application.apiModule() {
 
     routing {
         get("/") {
-            call.respondFile(File("index.html"))
+            call.respondFile(File("home_page/index.html"))
         }
 
         post("/login-register") {
