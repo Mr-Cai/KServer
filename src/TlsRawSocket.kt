@@ -1,14 +1,10 @@
-import io.ktor.network.selector.ActorSelectorManager
-import io.ktor.network.sockets.aSocket
-import io.ktor.network.sockets.openReadChannel
-import io.ktor.network.sockets.openWriteChannel
-import io.ktor.network.tls.tls
-import io.ktor.util.KtorExperimentalAPI
-import io.ktor.utils.io.core.readBytes
-import io.ktor.utils.io.readRemaining
-import io.ktor.utils.io.writeStringUtf8
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runBlocking
+import io.ktor.network.selector.*
+import io.ktor.network.sockets.*
+import io.ktor.network.tls.*
+import io.ktor.util.*
+import io.ktor.utils.io.*
+import io.ktor.utils.io.core.*
+import kotlinx.coroutines.*
 
 object TlsRawSocket {
     @KtorExperimentalAPI

@@ -1,14 +1,11 @@
-import io.ktor.client.HttpClient
-import io.ktor.client.engine.cio.CIO
-import io.ktor.client.features.websocket.WebSockets
-import io.ktor.client.features.websocket.ws
-import io.ktor.http.HttpMethod
-import io.ktor.http.cio.websocket.Frame
-import io.ktor.http.cio.websocket.readText
-import io.ktor.util.KtorExperimentalAPI
-import kotlinx.coroutines.channels.filterNotNull
-import kotlinx.coroutines.channels.map
-import kotlinx.coroutines.runBlocking
+import io.ktor.client.*
+import io.ktor.client.engine.cio.*
+import io.ktor.client.features.websocket.*
+import io.ktor.http.*
+import io.ktor.http.cio.websocket.*
+import io.ktor.util.*
+import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.*
 
 object WsClientApp {
     @KtorExperimentalAPI

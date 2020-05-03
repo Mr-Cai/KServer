@@ -1,0 +1,45 @@
+
+# Get all the snippets
+GET {{host}}/snippets
+
+###
+
+# Register a new user
+POST {{host}}/login-register
+Content-Type: application/json
+
+{
+  "user": "test",
+  "password": "test"
+}
+
+> {%
+client.assert(typeof response.body !== "undefined", "No token returned");
+client.global.set("auth_token", response.body);
+%}
+
+###
+
+# Put a new snippet (requires registering)
+POST {{host}}/snippets
+Content-Type: application/json
+Authorization: Bearer {{auth_token}}
+
+{
+  "snippet": {
+    "text": "hello-world-jwt"
+  }
+}
+
+###
+
+# Try a bad login-register
+POST {{host}}/login-register
+Content-Type: application/json
+
+{
+  "user": "test",
+  "password": "invalid-password"
+}
+
+###

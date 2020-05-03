@@ -1,22 +1,20 @@
 package ktor.funny
 
-import io.ktor.client.HttpClient
-import io.ktor.client.engine.mock.MockEngine
-import io.ktor.client.engine.mock.respond
+import io.ktor.application.*
+import io.ktor.client.*
+import io.ktor.client.engine.mock.*
 import io.ktor.client.request.get
 import io.ktor.client.request.request
-import io.ktor.client.statement.HttpResponse
-import io.ktor.http.HttpMethod
-import io.ktor.http.HttpStatusCode
-import io.ktor.http.fullPath
-import io.ktor.http.headersOf
-import io.ktor.server.testing.handleRequest
-import io.ktor.server.testing.withTestApplication
-import io.ktor.utils.io.ByteReadChannel
-import kotlinx.coroutines.runBlocking
+import io.ktor.client.statement.*
+import io.ktor.features.*
+import io.ktor.http.*
+import io.ktor.response.*
+import io.ktor.routing.*
+import io.ktor.server.testing.*
+import io.ktor.utils.io.*
+import kotlinx.coroutines.*
 import module
-import kotlin.test.Test
-import kotlin.test.assertEquals
+import kotlin.test.*
 
 class ApplicationTest {
     @Test
@@ -49,6 +47,26 @@ class ApplicationTest {
             assertEquals(byteArrayOf(1, 2, 3).toList(), client.get<ByteArray>("/").toList())
             assertEquals("MyValue", client.request<HttpResponse>("/") {}.headers["X-MyHeader"])
             assertEquals("Not Found other/path", client.get("/other/path"))
+        }
+    }
+
+    @Test
+    fun testRedirectHttps() {
+        withTestApplication {
+            application.install(XForwardedHeaderSupport)
+            application.install(HttpsRedirect)
+            application.routing {
+                get("/") {
+                    call.respond("ok")
+                }
+            }
+
+
+            handleRequest(HttpMethod.Get, "/") {
+                addHeader(HttpHeaders.XForwardedProto, "https")
+            }.let { call ->
+                assertEquals(HttpStatusCode.OK, call.response.status())
+            }
         }
     }
 }
