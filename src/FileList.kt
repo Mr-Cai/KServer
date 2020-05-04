@@ -4,10 +4,7 @@ import io.ktor.html.*
 import io.ktor.http.*
 import io.ktor.http.content.*
 import io.ktor.request.*
-import io.ktor.response.*
 import io.ktor.routing.*
-import io.ktor.server.engine.*
-import io.ktor.server.netty.*
 import io.ktor.util.*
 import kotlinx.coroutines.*
 import kotlinx.html.*
@@ -15,29 +12,6 @@ import java.io.*
 import java.text.*
 import java.util.*
 import kotlin.Comparator
-
-fun main(args: Array<String>) {
-    val root = File("./").takeIf { it.exists() }
-        ?: File("files").takeIf { it.exists() }
-        ?: error("Can't locate files folder")
-
-    embeddedServer(Netty, port = 80) {
-        install(DefaultHeaders)
-        install(CallLogging)
-        routing {
-            get("/") {
-                call.respondRedirect("index.html")
-            }
-            get("/info") {
-                call.respondInfo()
-            }
-            route("/home") {
-                files(root)
-                listing(root)
-            }
-        }
-    }.start(wait = true)
-}
 
 suspend fun ApplicationCall.respondInfo() {
     fun TABLE.row(key: String, value: Any?) {
@@ -154,6 +128,7 @@ suspend fun ApplicationCall.respondInfo() {
     }
 }
 
+@KtorExperimentalAPI
 fun Route.listing(folder: File) {
     val dir = staticRootFolder.combine(folder)
     val pathParameterName = "static-content-path-parameter"

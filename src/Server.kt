@@ -6,15 +6,19 @@ import io.ktor.auth.jwt.*
 import io.ktor.features.*
 import io.ktor.gson.*
 import io.ktor.http.*
+import io.ktor.http.content.*
 import io.ktor.request.*
 import io.ktor.response.*
 import io.ktor.routing.*
 import io.ktor.server.engine.*
 import io.ktor.server.netty.*
+import io.ktor.util.*
 import org.apache.http.auth.*
 import java.io.*
+import java.text.*
 import java.util.*
 
+@KtorExperimentalAPI
 fun main() {
     val env = applicationEngineEnvironment {
         module {
@@ -29,13 +33,14 @@ fun main() {
 }
 
 
+@KtorExperimentalAPI
 fun Application.apiModule() {
     val simpleJwt = SimpleJWT(secret = "my-super-secret-for-jwt")
 
-//    install(HttpsRedirect) {
-//        sslPort = 443
-//        permanentRedirect = true
-//    }
+    val root = File("home").takeIf { it.exists() }
+        ?: File("files").takeIf { it.exists() }
+        ?: error("找不到文件或文件夹")
+
     install(AutoHeadResponse)
 
     install(CORS) {
@@ -68,19 +73,36 @@ fun Application.apiModule() {
     install(ContentNegotiation) {
         gson {
             enableComplexMapKeySerialization()
+            setDateFormat(DateFormat.LONG)
+            setPrettyPrinting()
         }
     }
 
     routing {
         get("/") {
-            call.respondFile(File("home_page/index.html"))
+            call.respondFile(File("home/index.html"))
         }
+
+        get("/assets/svg/favicon.svg") {
+            call.respondFile(File("home/assets/svg/favicon.svg"))
+        }
+
+        route("/") {
+            files(root)
+            listing(root)
+        }
+
+        routePath()
 
         post("/login-register") {
             val post = call.receive<LoginRegister>()
             val user = users.getOrPut(post.user) { User(post.user, post.password) }
             if (user.password != post.password) throw InvalidCredentialsException("Invalid credentials")
             call.respond(mapOf("token" to simpleJwt.sign(user.name)))
+        }
+
+        get("/info") {
+            call.respondInfo()
         }
 
         route("/snippets") {
@@ -96,6 +118,12 @@ fun Application.apiModule() {
                 }
             }
         }
+    }
+}
+
+fun Route.routePath() {
+    get("/assets/svg/ic_launcher.svg") {
+        call.respondFile(File("/home/assets/svg/ic_launcher.svg"))
     }
 }
 
