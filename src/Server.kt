@@ -7,6 +7,7 @@ import io.ktor.features.*
 import io.ktor.gson.*
 import io.ktor.http.*
 import io.ktor.http.content.*
+import io.ktor.network.tls.certificates.*
 import io.ktor.request.*
 import io.ktor.response.*
 import io.ktor.routing.*
@@ -19,29 +20,37 @@ import java.text.*
 import java.util.*
 
 @KtorExperimentalAPI
-fun main() {
-    val env = applicationEngineEnvironment {
-        module {
-            apiModule()
-        }
-        connector {
-            host = "0.0.0.0"
-            port = 80
-        }
+fun main(args: Array<String>) {
+    // 生成SSL证书
+    val file = File("./www.funrefresh.com.jks")
+
+    if (!file.exists()) {
+        file.parentFile.mkdirs()
+        generateCertificate(file)
     }
-    embeddedServer(Netty, env).start(true)
+
+    embeddedServer(Netty, commandLineEnvironment(args)).start(wait = true)
 }
 
-
 @KtorExperimentalAPI
+@Suppress("unused")
 fun Application.apiModule() {
     val simpleJwt = SimpleJWT(secret = "my-super-secret-for-jwt")
 
-    val root = File("home").takeIf { it.exists() }
+    val root = File("web").takeIf { it.exists() }
         ?: File("files").takeIf { it.exists() }
         ?: error("找不到文件或文件夹")
 
-    install(AutoHeadResponse)
+    install(AutoHeadResponse)   // 自动响应请求头
+
+    install(CallLogging)
+
+    install(HSTS)
+
+    install(HttpsRedirect) {
+        sslPort = 443
+        permanentRedirect = true
+    }
 
     install(CORS) {
         method(HttpMethod.Options)
@@ -80,14 +89,14 @@ fun Application.apiModule() {
 
     routing {
         get("/") {
-            call.respondFile(File("home/index.html"))
-        }
-
-        get("/assets/svg/favicon.svg") {
-            call.respondFile(File("home/assets/svg/favicon.svg"))
+            call.respondFile(File("web/index.html"))
         }
 
         route("/") {
+            files(root)
+        }
+
+        route("/files") {
             files(root)
             listing(root)
         }

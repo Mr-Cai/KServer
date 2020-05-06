@@ -13,20 +13,9 @@ import io.ktor.routing.*
 import io.ktor.server.testing.*
 import io.ktor.utils.io.*
 import kotlinx.coroutines.*
-import module
 import kotlin.test.*
 
 class ApplicationTest {
-    @Test
-    fun testRoot() {
-        withTestApplication({ module(testing = true) }) {
-            handleRequest(HttpMethod.Get, "/").apply {
-                assertEquals(HttpStatusCode.OK, response.status())
-                assertEquals("HELLO WORLD!", response.content)
-            }
-        }
-    }
-
     @Test
     fun testClientMock() {
         runBlocking {
