@@ -1,33 +1,82 @@
-import com.auth0.jwt.*
-import com.auth0.jwt.algorithms.*
-import io.ktor.application.*
-import io.ktor.auth.*
-import io.ktor.auth.jwt.*
+@file:Suppress("SpellCheckingInspection")
+
+import com.auth0.jwt.JWT
+import com.auth0.jwt.JWTVerifier
+import com.auth0.jwt.algorithms.Algorithm
+import com.google.gson.Gson
+import database.Info
+import database.md5
+import io.ktor.application.Application
+import io.ktor.application.call
+import io.ktor.application.install
+import io.ktor.auth.Authentication
+import io.ktor.auth.UserIdPrincipal
+import io.ktor.auth.authenticate
+import io.ktor.auth.jwt.jwt
+import io.ktor.auth.principal
 import io.ktor.features.*
-import io.ktor.gson.*
-import io.ktor.http.*
-import io.ktor.http.content.*
-import io.ktor.network.tls.certificates.*
-import io.ktor.request.*
-import io.ktor.response.*
-import io.ktor.routing.*
-import io.ktor.server.engine.*
-import io.ktor.server.netty.*
-import io.ktor.util.*
-import org.apache.http.auth.*
-import java.io.*
-import java.text.*
+import io.ktor.gson.gson
+import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpMethod
+import io.ktor.http.HttpStatusCode
+import io.ktor.http.content.PartData
+import io.ktor.http.content.files
+import io.ktor.http.content.streamProvider
+import io.ktor.network.tls.certificates.generateCertificate
+import io.ktor.request.isMultipart
+import io.ktor.request.receive
+import io.ktor.request.receiveMultipart
+import io.ktor.response.respond
+import io.ktor.response.respondFile
+import io.ktor.response.respondTextWriter
+import io.ktor.routing.get
+import io.ktor.routing.post
+import io.ktor.routing.route
+import io.ktor.routing.routing
+import io.ktor.server.engine.commandLineEnvironment
+import io.ktor.server.engine.embeddedServer
+import io.ktor.server.netty.Netty
+import io.ktor.util.KtorExperimentalAPI
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.yield
+import org.apache.http.auth.InvalidCredentialsException
+import org.jetbrains.exposed.sql.Database
+import org.jetbrains.exposed.sql.insert
+import org.jetbrains.exposed.sql.select
+import org.jetbrains.exposed.sql.selectAll
+import org.jetbrains.exposed.sql.transactions.transaction
+import java.io.File
+import java.io.IOException
+import java.io.InputStream
+import java.io.OutputStream
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.Paths
+import java.nio.file.StandardCopyOption
+import java.text.DateFormat
 import java.util.*
+import kotlin.collections.ArrayList
+import kotlin.collections.HashMap
+
 
 @KtorExperimentalAPI
 fun main(args: Array<String>) {
-    // 生成SSL证书
+    // 绑定SSL证书
     val file = File("./www.funrefresh.com.jks")
 
+    // 生成SSL证书
     if (!file.exists()) {
         file.parentFile.mkdirs()
         generateCertificate(file)
     }
+
+    Database.connect(
+        url = "jdbc:mysql://106.53.106.142:3306/users",
+        driver = "com.mysql.cj.jdbc.Driver",
+        user = "root",
+        password = "153580"
+    )
 
     embeddedServer(Netty, commandLineEnvironment(args)).start(wait = true)
 }
@@ -35,10 +84,12 @@ fun main(args: Array<String>) {
 @KtorExperimentalAPI
 @Suppress("unused")
 fun Application.apiModule() {
-    val simpleJwt = SimpleJWT(secret = "my-super-secret-for-jwt")
+    val secretJWT = SecretJWT(secret = "json-web-token-secret")
 
-    val root = File("web").takeIf { it.exists() }
-        ?: File("files").takeIf { it.exists() }
+    val webRoot = File("./web/").takeIf { it.exists() }
+        ?: error("找不到文件或文件夹")
+
+    val root = File("./").takeIf { it.exists() }
         ?: error("找不到文件或文件夹")
 
     install(AutoHeadResponse)   // 自动响应请求头
@@ -66,13 +117,19 @@ fun Application.apiModule() {
 
     install(StatusPages) {
         exception<InvalidCredentialsException> { exception ->
-            call.respond(HttpStatusCode.Unauthorized, mapOf("OK" to false, "error" to (exception.message ?: "")))
+            call.respond(
+                HttpStatusCode.Unauthorized,
+                mapOf(
+                    "OK" to false,
+                    "error" to (exception.message ?: "")
+                )
+            )
         }
     }
 
     install(Authentication) {
         jwt {
-            verifier(simpleJwt.verifier)
+            verifier(secretJWT.verifier)
             validate {
                 UserIdPrincipal(it.payload.getClaim("name").asString())
             }
@@ -88,79 +145,217 @@ fun Application.apiModule() {
     }
 
     routing {
-        get("/") {
-            call.respondFile(File("web/index.html"))
-        }
-
         route("/") {
-            files(root)
-        }
-
-        route("/files") {
+            get { call.respondFile(File("./web/index.html")) }
+            files(webRoot)
+            listing(webRoot)
             files(root)
             listing(root)
         }
 
-        routePath()
+        route("/l") {
+            files(root)
+            listing(root)
+        }
 
-        post("/login-register") {
-            val post = call.receive<LoginRegister>()
-            val user = users.getOrPut(post.user) { User(post.user, post.password) }
-            if (user.password != post.password) throw InvalidCredentialsException("Invalid credentials")
-            call.respond(mapOf("token" to simpleJwt.sign(user.name)))
+        post("/login") {
+
         }
 
         get("/info") {
             call.respondInfo()
         }
 
-        route("/snippets") {
+        route("/users") {
             get {
-                call.respond(mapOf("snippets" to synchronized(snippets) { snippets.toList() }))
+                call.respond(mapOf("users" to synchronized(getUsers()) { getUsers() }))
             }
+
             authenticate {
                 post {
-                    val post = call.receive<PostSnippet>()
+                    val post = call.receive<UserInfo>()
                     val principal = call.principal<UserIdPrincipal>() ?: error("No principal")
-                    snippets += Snippet(principal.name, post.snippet.text)
+                    getUsers().add(UserInfo(nick_name = principal.name, real_name = post.real_name))
                     call.respond(mapOf("OK" to true))
+                }
+            }
+        }
+
+        post("/register") {
+            val config = environment.config.config("ktor")
+            val uploadPath = config.property("upload.dir").getString()
+            val uploadDir = File(uploadPath)
+
+            if (!uploadDir.exists() && !uploadDir.mkdirs()) {
+                throw IOException("创建目录失败 : ${uploadDir.absolutePath}")
+            }
+
+            val formMap = HashMap<String, String>()
+
+            val multipart = call.receiveMultipart()
+
+            call.respondTextWriter {
+                if (!call.request.isMultipart()) {
+                    appendln("不是分段请求")
+                } else {
+                    while (true) {
+                        val part = multipart.readPart() ?: break
+                        when (part) {
+                            is PartData.FormItem -> {
+                                formMap["${part.name}"] = part.value
+                            }
+                            is PartData.FileItem -> {
+                                val file = File(
+                                    uploadDir,
+                                    "${part.originalFileName}"
+                                )
+                                part.streamProvider().use { its ->
+                                    file.outputStream().buffered().use {
+                                        its.copyToSuspend(it)
+                                    }
+                                }
+                                val md5Id = part.originalFileName?.md5()
+                                val source: Path = Paths.get(file.path)
+                                val headPath: Path = source.resolveSibling(
+                                    "$md5Id/avatar/header.png"
+                                )
+
+                                withContext(Dispatchers.IO) {
+                                    if (Files.notExists(headPath)) {
+                                        Files.createDirectories(headPath)
+                                    }
+                                    Files.move(
+                                        source, headPath,
+                                        StandardCopyOption.REPLACE_EXISTING
+                                    ).run {
+                                        transaction {
+                                            try {
+                                                val select = Info.select {
+                                                    Info.id eq "$md5Id"
+                                                }
+
+                                                if (select.count() > 0L) {
+                                                    Info.insert {
+                                                        it[id] = "$md5Id"
+                                                        it[avatar] = "https://funrefresh.com/$headPath"
+                                                    }
+                                                }
+                                            } catch (e: Exception) {
+                                                e.printStackTrace()
+                                            }
+                                        }
+                                        appendln(
+                                            Gson().toJson(
+                                                mapOf("avatar_link" to "https://funrefresh.com/$headPath")
+                                            )
+                                        )
+                                    }
+                                }
+                            }
+                            is PartData.BinaryItem ->
+                                appendln("BinaryItem: ${part.name} -> ${part.provider}")
+                        }
+                        part.dispose()
+                    }
+                }
+            }
+
+            transaction {
+                try {
+                    if (formMap.isNotEmpty()) {
+                        val count = Info.select {
+                            Info.id eq "${formMap["nick_name"]}".md5()
+                        }.count()
+                        if (count != 1L) {
+                            Info.insert {
+                                it[id] = "${formMap["nick_name"]}".md5()
+                                it[nick_name] = "${formMap["nick_name"]}"
+                                it[real_name] = "${formMap["real_name"]}"
+                                it[age] = "${formMap["age"]}".toInt()
+                                it[gender] = "${formMap["gender"]}"
+                                it[phone] = "${formMap["phone"]}"
+                                it[password] = "${formMap["password"]}"
+                                it[job] = "${formMap["job"]}"
+                                it[love] = "${formMap["love"]}"
+                                it[qq] = "${formMap["qq"]}"
+                                it[wechat] = "${formMap["wechat"]}"
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
                 }
             }
         }
     }
 }
 
-fun Route.routePath() {
-    get("/assets/svg/ic_launcher.svg") {
-        call.respondFile(File("/home/assets/svg/ic_launcher.svg"))
+suspend fun InputStream.copyToSuspend(
+    out: OutputStream,
+    bufferSize: Int = DEFAULT_BUFFER_SIZE,
+    yieldSize: Int = 4 * 1024 * 1024
+): Long {
+    return withContext(Dispatchers.IO) {
+        val buffer = ByteArray(bufferSize)
+        var bytesCopied = 0L
+        var bytesAfterYield = 0L
+        while (true) {
+            val bytes = read(buffer).takeIf { it >= 0 } ?: break
+            out.write(buffer, 0, bytes)
+            if (bytesAfterYield >= yieldSize) {
+                yield()
+                bytesAfterYield %= yieldSize
+            }
+            bytesCopied += bytes
+            bytesAfterYield += bytes
+        }
+        return@withContext bytesCopied
     }
 }
 
-data class PostSnippet(val snippet: Text) {
-    data class Text(val text: String)
-}
 
-data class Snippet(val user: String, val text: String)
-
-val snippets: MutableList<Snippet> = Collections.synchronizedList(
-    mutableListOf(
-        Snippet(user = "test", text = "hello"),
-        Snippet(user = "test", text = "world")
-    )
+data class UserInfo(
+    val id: String = "",
+    val nick_name: String = "",
+    val real_name: String = "",
+    val age: Int = 0,
+    val gender: String = "",
+    val phone: String = "",
+    val job: String = "",
+    val love: String = "",
+    val qq: String = "",
+    val wechat: String = ""
 )
 
-open class SimpleJWT(secret: String) {
+fun getUsers(): MutableList<UserInfo> {
+    val list = ArrayList<UserInfo>()
+
+    transaction {
+        Info.selectAll().map {
+            list.add(
+                UserInfo(
+                    id = it[Info.id],
+                    nick_name = it[Info.nick_name],
+                    real_name = it[Info.real_name],
+                    age = it[Info.age],
+                    gender = it[Info.gender],
+                    phone = it[Info.phone],
+                    job = it[Info.job],
+                    love = it[Info.love],
+                    qq = it[Info.qq],
+                    wechat = it[Info.wechat]
+                )
+            )
+        }
+    }
+
+    Collections.synchronizedList(list)
+
+    return list
+}
+
+open class SecretJWT(val secret: String) {
     private val algorithm = Algorithm.HMAC256(secret)
     val verifier: JWTVerifier = JWT.require(algorithm).build()
     fun sign(name: String): String = JWT.create().withClaim("name", name).sign(algorithm)
 }
-
-class User(val name: String, val password: String)
-
-val users: MutableMap<String, User> = Collections.synchronizedMap(
-    listOf(User("test", "test"))
-        .associateBy { it.name }
-        .toMutableMap()
-)
-
-class LoginRegister(val user: String, val password: String)

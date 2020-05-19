@@ -27,16 +27,6 @@ tasks.withType<Jar> {
     }
 }
 
-tasks.register<JavaExec>("generateJks") {
-    classpath = sourceSets.main.get().runtimeClasspath
-    main = "CertificateGeneratorKt"
-}
-
-
-tasks.getByName("run") {
-    dependsOn("generateJks")
-}
-
 repositories {
     mavenLocal()
     jcenter()

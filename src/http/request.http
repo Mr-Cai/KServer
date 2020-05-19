@@ -1,45 +1,47 @@
+# 注册
+POST {{host}}/register
+Content-Type: multipart/form-data; boundary=WebAppBoundary
 
-# Get all the snippets
+--WebAppBoundary
+Content-Disposition: form-data; name="data"; filename="data.json"
+Content-Type: application/json
+
+< ./
+--WebAppBoundary--
+
+###
+
+
+# 上传文件
+POST {{host}}/upload
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="field-name"; filename="ktor_logo.svg";
+
+< ../../resources/static/ktor_logo.svg
+--WebAppBoundary--
+
+###
+
+# 登录
+POST {{host}}/login
+Content-Type: application/json
+
+{
+  "user_name": "",
+  "password": "",
+  "phone": "",
+  "capture": "",
+  "token": ""
+}
+
+###
+
+# 片段
 GET {{host}}/snippets
+Accept: application/json
+
 
 ###
 
-# Register a new user
-POST {{host}}/login-register
-Content-Type: application/json
-
-{
-  "user": "test",
-  "password": "test"
-}
-
-> {%
-client.assert(typeof response.body !== "undefined", "No token returned");
-client.global.set("auth_token", response.body);
-%}
-
-###
-
-# Put a new snippet (requires registering)
-POST {{host}}/snippets
-Content-Type: application/json
-Authorization: Bearer {{auth_token}}
-
-{
-  "snippet": {
-    "text": "hello-world-jwt"
-  }
-}
-
-###
-
-# Try a bad login-register
-POST {{host}}/login-register
-Content-Type: application/json
-
-{
-  "user": "test",
-  "password": "invalid-password"
-}
-
-###

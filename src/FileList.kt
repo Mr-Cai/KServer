@@ -1,15 +1,22 @@
-import io.ktor.application.*
-import io.ktor.features.*
-import io.ktor.html.*
-import io.ktor.http.*
-import io.ktor.http.content.*
+import io.ktor.application.ApplicationCall
+import io.ktor.application.call
+import io.ktor.features.origin
+import io.ktor.html.respondHtml
+import io.ktor.http.ContentType
+import io.ktor.http.content.staticRootFolder
+import io.ktor.http.formUrlEncode
+import io.ktor.http.fromFilePath
 import io.ktor.request.*
-import io.ktor.routing.*
-import io.ktor.util.*
-import kotlinx.coroutines.*
+import io.ktor.routing.Route
+import io.ktor.routing.get
+import io.ktor.util.KtorExperimentalAPI
+import io.ktor.util.combineSafe
+import io.ktor.util.flattenEntries
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.html.*
-import java.io.*
-import java.text.*
+import java.io.File
+import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.Comparator
 
@@ -44,7 +51,7 @@ suspend fun ApplicationCall.respondInfo() {
                 """.trimIndent()
             }
             h1 {
-                +"Ktor info"
+                +"Ktor 服务器配置信息"
             }
             h2 {
                 +"Info"
