@@ -165,19 +165,21 @@ fun Application.apiModule() {
                     -> {
                         Info.select {
                             Info.phone eq param.phone
-                        }.forEach {
-                            when {
-                                param.phone != it[Info.phone] &&
-                                        param.password != it[Info.password] -> {
-                                    loginMsg = "用户名和密码都错了"
-                                }
+                        }.run {
+                            if (count() == 0L) {
+                                loginMsg = "手机号未注册"
+                            }
+                            forEach {
+                                loginMsg = when {
+                                    param.phone == it[Info.phone] &&
+                                            param.password == it[Info.password]
+                                    -> "登录成功"
 
-                                param.phone == it[Info.phone] &&
-                                        param.password == it[Info.password]
-                                -> loginMsg = "登录成功"
+                                    param.password != it[Info.password] -> {
+                                        "密码输入有误"
+                                    }
 
-                                param.password != it[Info.password] -> {
-                                    loginMsg = "密码输入有误"
+                                    else -> "登录参数缺失"
                                 }
                             }
                         }
@@ -187,24 +189,25 @@ fun Application.apiModule() {
                     -> {
                         Info.select {
                             Info.nick_name eq param.nick_name
-                        }.forEach {
-                            when {
-                                param.nick_name != it[Info.nick_name] &&
-                                        param.password != it[Info.password] -> {
-                                    loginMsg = "用户名和密码都错了"
+                        }.run {
+                            if (count() == 0L) {
+                                loginMsg = "用户不存在"
+                            }
+                            forEach {
+                                loginMsg = when {
+                                    param.nick_name == it[Info.nick_name] &&
+                                            param.password == it[Info.password]
+                                    -> "登录成功"
+
+                                    param.password != it[Info.password] -> {
+                                        "密码输入有误"
+                                    }
+
+                                    else -> "登录参数缺失"
                                 }
-
-                                param.nick_name == it[Info.nick_name] &&
-                                        param.password == it[Info.password]
-                                -> loginMsg = "登录成功"
-
-
-                                param.nick_name != it[Info.nick_name] -> {
-                                    loginMsg = "用户名输入有误"
-                                }
-
                             }
                         }
+
                     }
 
                     else -> loginMsg = "登录参数缺失"
