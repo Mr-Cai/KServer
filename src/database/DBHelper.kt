@@ -1,9 +1,34 @@
 package database
 
-import org.jetbrains.exposed.sql.Column
-import org.jetbrains.exposed.sql.Table
+import org.jetbrains.exposed.sql.*
+import org.jetbrains.exposed.sql.transactions.transaction
 import java.math.BigInteger
 import java.security.MessageDigest
+
+fun main() {
+    Database.connect(
+        url = "jdbc:mysql://106.53.106.142:3306/users",
+        driver = "com.mysql.cj.jdbc.Driver",
+        user = "root",
+        password = "153580"
+    )
+    transaction {
+        val query = Info.select {
+            Info.phone eq "14706616580"
+        }
+        println(query.single()[Info.id])
+
+        Info.slice(Info.nick_name, Info.password).select {
+            Info.phone eq "14706616580"
+        }.forEach {
+            println(it)
+        }
+
+        for (info in Info.selectAll()) {
+            println("${info[Info.phone]} \t ${info[Info.nick_name]}")
+        }
+    }
+}
 
 fun String.md5(): String {
     val md = MessageDigest.getInstance("MD5")

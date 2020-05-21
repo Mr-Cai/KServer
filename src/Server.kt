@@ -41,10 +41,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
 import org.apache.http.auth.InvalidCredentialsException
-import org.jetbrains.exposed.sql.Database
-import org.jetbrains.exposed.sql.insert
-import org.jetbrains.exposed.sql.select
-import org.jetbrains.exposed.sql.selectAll
+import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.io.File
 import java.io.IOException
@@ -159,7 +156,61 @@ fun Application.apiModule() {
         }
 
         post("/login") {
+            val param = call.receive<UserInfo>()
+            var loginMsg = ""
 
+            transaction {
+                when {
+                    param.phone.isNotEmpty() && param.password.isNotEmpty()
+                    -> {
+                        Info.select {
+                            Info.phone eq param.phone
+                        }.forEach {
+                            when {
+                                param.phone != it[Info.phone] &&
+                                        param.password != it[Info.password] -> {
+                                    loginMsg = "用户名和密码都错了"
+                                }
+
+                                param.phone == it[Info.phone] &&
+                                        param.password == it[Info.password]
+                                -> loginMsg = "登录成功"
+
+                                param.password != it[Info.password] -> {
+                                    loginMsg = "密码输入有误"
+                                }
+                            }
+                        }
+                    }
+
+                    param.nick_name.isNotEmpty() && param.password.isNotEmpty()
+                    -> {
+                        Info.select {
+                            Info.nick_name eq param.nick_name
+                        }.forEach {
+                            when {
+                                param.nick_name != it[Info.nick_name] &&
+                                        param.password != it[Info.password] -> {
+                                    loginMsg = "用户名和密码都错了"
+                                }
+
+                                param.nick_name == it[Info.nick_name] &&
+                                        param.password == it[Info.password]
+                                -> loginMsg = "登录成功"
+
+
+                                param.nick_name != it[Info.nick_name] -> {
+                                    loginMsg = "用户名输入有误"
+                                }
+
+                            }
+                        }
+                    }
+
+                    else -> loginMsg = "登录参数缺失"
+                }
+            }
+            call.respond(mapOf("result" to loginMsg))
         }
 
         get("/info") {
@@ -214,10 +265,10 @@ fun Application.apiModule() {
                                         its.copyToSuspend(it)
                                     }
                                 }
-                                val md5Id = part.originalFileName?.md5()
+
                                 val source: Path = Paths.get(file.path)
                                 val headPath: Path = source.resolveSibling(
-                                    "$md5Id/avatar/header.png"
+                                    "md5Id/avatar/header.png"
                                 )
 
                                 withContext(Dispatchers.IO) {
@@ -230,15 +281,10 @@ fun Application.apiModule() {
                                     ).run {
                                         transaction {
                                             try {
-                                                val select = Info.select {
-                                                    Info.id eq "$md5Id"
-                                                }
-
-                                                if (select.count() > 0L) {
-                                                    Info.insert {
-                                                        it[id] = "$md5Id"
-                                                        it[avatar] = "https://funrefresh.com/$headPath"
-                                                    }
+                                                Info.update({
+                                                    Info.id eq "cdabbf2440a26771"
+                                                }) {
+                                                    it[avatar] = "https://funrefresh.com/$headPath"
                                                 }
                                             } catch (e: Exception) {
                                                 e.printStackTrace()
@@ -270,15 +316,8 @@ fun Application.apiModule() {
                             Info.insert {
                                 it[id] = "${formMap["nick_name"]}".md5()
                                 it[nick_name] = "${formMap["nick_name"]}"
-                                it[real_name] = "${formMap["real_name"]}"
-                                it[age] = "${formMap["age"]}".toInt()
-                                it[gender] = "${formMap["gender"]}"
                                 it[phone] = "${formMap["phone"]}"
                                 it[password] = "${formMap["password"]}"
-                                it[job] = "${formMap["job"]}"
-                                it[love] = "${formMap["love"]}"
-                                it[qq] = "${formMap["qq"]}"
-                                it[wechat] = "${formMap["wechat"]}"
                             }
                         }
                     }
@@ -316,8 +355,10 @@ suspend fun InputStream.copyToSuspend(
 
 data class UserInfo(
     val id: String = "",
+    val avatar: String = "",
     val nick_name: String = "",
     val real_name: String = "",
+    val password: String = "",
     val age: Int = 0,
     val gender: String = "",
     val phone: String = "",
@@ -327,6 +368,12 @@ data class UserInfo(
     val wechat: String = ""
 )
 
+//data class LoginParam(
+//    val userName: String = "",
+//    val password: String = "",
+//    val phone: String = ""
+//)
+
 fun getUsers(): MutableList<UserInfo> {
     val list = ArrayList<UserInfo>()
 
@@ -335,6 +382,7 @@ fun getUsers(): MutableList<UserInfo> {
             list.add(
                 UserInfo(
                     id = it[Info.id],
+                    avatar = it[Info.avatar],
                     nick_name = it[Info.nick_name],
                     real_name = it[Info.real_name],
                     age = it[Info.age],
